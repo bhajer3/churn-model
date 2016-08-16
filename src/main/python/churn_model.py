@@ -9,6 +9,54 @@ from pyspark.sql.types import *
 def f(x):
 	print x
 
+def makeSqlRow(line):
+ 	line = line.replace(" ","").split(",")
+
+        state = line[0]
+        acctLength = int( line[1] )
+        areaCode = line[2]
+        internationalPlan = line[3]
+        voiceMailPlan = line[4]
+        numOfVmailMessages = int( line[5] )
+        totalDayMinutes = float( line[6])
+        totalDayCalls = int( line[7] )
+        totalDayCharge = float( line[8] )
+        totalEveningMinutes = float( line[9] )
+        totalEveningCalls = int( line[10] )
+        totalEveningCharge = float( line[11] )
+        totalNightMinutes = float(line[12] )
+        totalNightCalls = int(line[13])
+        totalNightCharge = float(line[14])
+        totalInternationalMinutes = float(line[15])
+        totalInternationalCalls = int(line[16])
+        totalInternationalCharge = float(line[17])
+        customerServiceCalls = int(line[18])
+        churn = 1 if line[19] == "True" else 0        
+	
+	obj = Row(
+               state =  state,
+               acctLength =  acctLength,
+               areaCode  =  areaCode,
+               internationalPlan  =  internationalPlan,
+               voiceMailPlan =  voiceMailPlan,
+               numOfVmailMessages  =  numOfVmailMessages,
+               totalDayMinutes  =  totalDayMinutes,
+               totalDayCalls  =  totalDayCalls,
+               totalDayCharge  =  totalDayCharge,
+               totalEveningMinutes  =  totalEveningMinutes,
+               totalEveningCalls  =  totalEveningCalls,
+               totalEveningCharge =  totalEveningCharge,
+               totalNightMinutes =  totalNightMinutes,
+               totalNightCalls =  totalNightCalls,
+               totalNightCharge =  totalNightCharge,
+               totalInternationalMinutes =  totalInternationalMinutes,
+               totalInternationalCalls =  totalInternationalCalls,
+               totalInternationalCharge =  totalInternationalCharge,
+               customerService =  customerServiceCalls,
+               churn  =  churn
+	)
+        return obj
+	
 conf = ( SparkConf().setAppName('Churn Rate Data Processing') )
 sc = SparkContext(conf = conf)
 
@@ -21,5 +69,8 @@ rddWithOutHeader = ( rdd1
                       .map( lambda (key,index): key )
                    )
 
+rddOfRows = rddWithOutHeader.map(makeSqlRow)
 
-rddWithOutHeader.foreach(f)
+sqlContext = SQLContext(sc)
+df = sqlContext.createDataFrame(rddOfRows)
+df.show(5)
