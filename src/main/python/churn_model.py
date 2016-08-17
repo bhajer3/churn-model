@@ -3,6 +3,7 @@ from pyspark.mllib.regression import LabeledPoint
 from pyspark.mllib.tree import DecisionTree
 from pyspark.sql import SQLContext, DataFrame, Column, Row
 from pyspark.sql.types import *
+import time
 
 # KS,128,415,No,Yes,25,265.1,110,45.07,197.4,99,16.78,244.7,91,11.01,10.0,3,2.7,1,False
 
@@ -60,17 +61,66 @@ def makeSqlRow(line):
 conf = ( SparkConf().setAppName('Churn Rate Data Processing') )
 sc = SparkContext(conf = conf)
 
+# sc.stop()
+
 path = '../resources/churn-bigml-80.txt'
 rdd1 = sc.textFile(path)
 
 rddWithOutHeader = ( rdd1
                       .zipWithIndex()
                       .filter( lambda (key,index): index != 0 )
-                      .map( lambda (key,index): key )
+                      .map( lambda (key,index): makeSqlRow(key) )
                    )
 
-rddOfRows = rddWithOutHeader.map(makeSqlRow)
+#rddWithOutHeader.foreach(f)
+
+#rddWithOutHeader.collect().foreach(f)
+
+
+#rddWithOutHeader.filter( lambda obj: obj.state == "NY" ).foreach(f)
+
+#for x in rddWithOutHeader.take(5):
+#	print x
+
+def getIterableLength(x,y):
+	lenOfGroup = len( y )
+	return (x,lenOfGroup)
+
+block1Start = time.time()
+
+#rddx = (
+#	rddWithOutHeader
+#	 .groupBy( lambda x: (x.state,x.churn) )
+#	 .map( lambda (x,y): getIterableLength(x,y) )
+#         .sortBy( lambda (x,y): x )
+#       )
+
+#for x in rddx.collect():
+#	print x
+
+
+#finalTime = time.time() - block1Start
+#print finalTime
+
+#block2Start = time.time()
+
+rddy = ( 
+	rddWithOutHeader
+	 .map( lambda x: ((x.state,x.churn),1) )
+  	 .reduceByKey( lambda x,y: x + y )
+ 	 .sortBy( lambda (x,y): x )
+       )
+
+#for y in rddy.collect():
+#	print y
+
+#finalTime2 = time.time() - block2Start
+#print(finalTime2)
 
 sqlContext = SQLContext(sc)
-df = sqlContext.createDataFrame(rddOfRows)
-df.show(5)
+df = sqlContext.createDataFrame(rddWithOutHeader)
+#df.show(5)
+
+df.filter( "churn = 1" ).show(5)
+#rddz = df.rdd
+
