@@ -3,9 +3,21 @@ from pyspark.mllib.regression import LabeledPoint
 from pyspark.mllib.tree import DecisionTree
 from pyspark.sql import SQLContext, DataFrame, Column, Row
 from pyspark.sql.types import *
+
+from pyspark.sql.functions import UserDefinedFunction
+
 import time
 
 # KS,128,415,No,Yes,25,265.1,110,45.07,197.4,99,16.78,244.7,91,11.01,10.0,3,2.7,1,False
+
+binaryMap = { 'Yes' : 1.0, 'No' : 0.0, 'True' : 1.0, 'False' : 0.0  }
+
+stateSet1 = ['WA', 'WI', 'FL', 'WY', 'NH', 'NJ', 'TX', 'ND', 'TN', 'CA', 'NV', 'CO', 'AK', 'VT', 'GA', 'IA', 'MA', 'ME', 'OK', 'MO', 'MI', 'KS', 'MS', 'SC']
+stateSet2 = ['KY', 'DE', 'DC', 'WV', 'HI', 'NM', 'LA', 'NC', 'NE', 'NY', 'PA', 'RI', 'VA', 'AL', 'AR', 'IL', 'IN', 'AZ','ID','CT','MD','OH','UT','MN','MT','OR', 'SD']
+
+stateMap = { 1 : stateSet1, 2: stateSet2 }
+toState = UserDefinedFunction( lambda state: filter( lambda (region,stateSet): state.upper() in stateSet, stateMap ).keys()[0], IntegerType() )
+toNum = UserDefinedFunction( lambda k: binaryMap[k], DoubleType() )
 
 def f(x):
 	print x
@@ -32,7 +44,7 @@ def makeSqlRow(line):
         totalInternationalCalls = int(line[16])
         totalInternationalCharge = float(line[17])
         customerServiceCalls = int(line[18])
-        churn = 1 if line[19] == "True" else 0        
+        churn = line[19]        
 	
 	obj = Row(
                state =  state,
@@ -57,8 +69,8 @@ def makeSqlRow(line):
                churn  =  churn
 	)
         return obj
-	
-conf = ( SparkConf().setAppName('Churn Rate Data Processing') )
+
+conf = ( SparkConf().setAppName('Churn Rate Data Processing2') )
 sc = SparkContext(conf = conf)
 
 # sc.stop()
@@ -72,55 +84,63 @@ rddWithOutHeader = ( rdd1
                       .map( lambda (key,index): makeSqlRow(key) )
                    )
 
-#rddWithOutHeader.foreach(f)
-
-#rddWithOutHeader.collect().foreach(f)
-
-
 #rddWithOutHeader.filter( lambda obj: obj.state == "NY" ).foreach(f)
 
-#for x in rddWithOutHeader.take(5):
-#	print x
 
 def getIterableLength(x,y):
 	lenOfGroup = len( y )
 	return (x,lenOfGroup)
 
-block1Start = time.time()
 
-#rddx = (
+#rdd1 = (
 #	rddWithOutHeader
 #	 .groupBy( lambda x: (x.state,x.churn) )
 #	 .map( lambda (x,y): getIterableLength(x,y) )
 #         .sortBy( lambda (x,y): x )
 #       )
 
-#for x in rddx.collect():
-#	print x
-
-
-#finalTime = time.time() - block1Start
-#print finalTime
-
-#block2Start = time.time()
-
-rddy = ( 
-	rddWithOutHeader
-	 .map( lambda x: ((x.state,x.churn),1) )
-  	 .reduceByKey( lambda x,y: x + y )
- 	 .sortBy( lambda (x,y): x )
-       )
-
-#for y in rddy.collect():
-#	print y
-
-#finalTime2 = time.time() - block2Start
-#print(finalTime2)
+#rdd2 = ( 
+#	rddWithOutHeader
+#	 .map( lambda x: ((x.state,x.churn),1) )
+#  	 .reduceByKey( lambda x,y: x + y )
+# 	 .sortBy( lambda (x,y): x )
+#       )
 
 sqlContext = SQLContext(sc)
 df = sqlContext.createDataFrame(rddWithOutHeader)
-#df.show(5)
 
-df.filter( "churn = 1" ).show(5)
-#rddz = df.rdd
+#df2 = ( df
+#	 .drop('areaCode')
+#	 .drop('totalDayCharge')
+#	 .drop('totalEveningCharge')
+#	 .drop('totalNightCharge')
+#	 .drop('totalInternationalCharge')
+#         .withColumn('internationalPlan', toNum( df['internationalPlan'] ) )
+#         .withColumn('voiceMailPlan', toNum( df['voiceMailPlan'] ) )
+#         .withColumn('state', toState( df['state'] ) )
+#         .withColumn('churn', toNum( df['churn'] ) )
+#     )
 
+df2  = ( 
+	df
+	.select( "internationalPlan", 
+		  "voiceMailPlan", 
+		  "state", 
+	          "churn",
+                  "acctLength", 
+                  "numOfVmailMessages", 
+                  "totalDayMinutes",
+                  "totalDayCalls",
+                  "customerServiceCalls",
+		  "totalInternationalMinutes",
+		  "totalEveningMinutes",
+		  "totalNightMinutes",
+		  "totalInternationalCalls")
+         .withColumn('internationalPlan', toNum( df['internationalPlan'] ) )
+         .withColumn('voiceMailPlan', toNum( df['voiceMailPlan'] ) )
+         .withColumn('state', toState( df['state'] ) )
+         .withColumn('churn', toNum( df['churn'] ) )
+	)
+	             
+df2.show(5)
+#sc.stop()
